@@ -1,21 +1,29 @@
 'use strict';
 
+/* global ngTouch: false */
+
 /**
  * @ngdoc directive
- * @name ngTouch.directive:ngSwipeLeft
+ * @name ngSwipeLeft
  *
  * @description
  * Specify custom behavior when an element is swiped to the left on a touchscreen device.
  * A leftward swipe is a quick, right-to-left slide of the finger.
- * Though ngSwipeLeft is designed for touch-based devices, it will work with a mouse click and drag too.
+ * Though ngSwipeLeft is designed for touch-based devices, it will work with a mouse click and drag
+ * too.
+ *
+ * To disable the mouse click and drag functionality, add `ng-swipe-disable-mouse` to
+ * the `ng-swipe-left` or `ng-swipe-right` DOM Element.
+ *
+ * Requires the {@link ngTouch `ngTouch`} module to be installed.
  *
  * @element ANY
  * @param {expression} ngSwipeLeft {@link guide/expression Expression} to evaluate
  * upon left swipe. (Event object is available as `$event`)
  *
  * @example
-    <doc:example>
-      <doc:source>
+    <example module="ngSwipeLeftExample" deps="angular-touch.js">
+      <file name="index.html">
         <div ng-show="!showActions" ng-swipe-left="showActions = true">
           Some list content, like an email in the inbox
         </div>
@@ -23,26 +31,32 @@
           <button ng-click="reply()">Reply</button>
           <button ng-click="delete()">Delete</button>
         </div>
-      </doc:source>
-    </doc:example>
+      </file>
+      <file name="script.js">
+        angular.module('ngSwipeLeftExample', ['ngTouch']);
+      </file>
+    </example>
  */
 
 /**
  * @ngdoc directive
- * @name ngTouch.directive:ngSwipeRight
+ * @name ngSwipeRight
  *
  * @description
  * Specify custom behavior when an element is swiped to the right on a touchscreen device.
  * A rightward swipe is a quick, left-to-right slide of the finger.
- * Though ngSwipeRight is designed for touch-based devices, it will work with a mouse click and drag too.
+ * Though ngSwipeRight is designed for touch-based devices, it will work with a mouse click and drag
+ * too.
+ *
+ * Requires the {@link ngTouch `ngTouch`} module to be installed.
  *
  * @element ANY
  * @param {expression} ngSwipeRight {@link guide/expression Expression} to evaluate
  * upon right swipe. (Event object is available as `$event`)
  *
  * @example
-    <doc:example>
-      <doc:source>
+    <example module="ngSwipeRightExample" deps="angular-touch.js">
+      <file name="index.html">
         <div ng-show="!showActions" ng-swipe-left="showActions = true">
           Some list content, like an email in the inbox
         </div>
@@ -50,8 +64,11 @@
           <button ng-click="reply()">Reply</button>
           <button ng-click="delete()">Delete</button>
         </div>
-      </doc:source>
-    </doc:example>
+      </file>
+      <file name="script.js">
+        angular.module('ngSwipeRightExample', ['ngTouch']);
+      </file>
+    </example>
  */
 
 function makeSwipeDirective(directiveName, direction, eventName) {
@@ -87,23 +104,27 @@ function makeSwipeDirective(directiveName, direction, eventName) {
             deltaY / deltaX < MAX_VERTICAL_RATIO;
       }
 
+      var pointerTypes = ['touch'];
+      if (!angular.isDefined(attr['ngSwipeDisableMouse'])) {
+        pointerTypes.push('mouse');
+      }
       $swipe.bind(element, {
-        'start': function(coords) {
+        'start': function(coords, event) {
           startCoords = coords;
           valid = true;
         },
-        'cancel': function() {
+        'cancel': function(event) {
           valid = false;
         },
-        'end': function(coords) {
+        'end': function(coords, event) {
           if (validSwipe(coords)) {
             scope.$apply(function() {
               element.triggerHandler(eventName);
-              swipeHandler(scope);
+              swipeHandler(scope, {$event: event});
             });
           }
         }
-      });
+      }, pointerTypes);
     };
   }]);
 }

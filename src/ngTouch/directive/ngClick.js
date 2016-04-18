@@ -1,14 +1,29 @@
 'use strict';
 
+/* global ngTouch: false,
+  nodeName_: false
+*/
+
 /**
  * @ngdoc directive
- * @name ngTouch.directive:ngClick
+ * @name ngClick
+ * @deprecated
  *
  * @description
+ * <div class="alert alert-danger">
+ * **DEPRECATION NOTICE**: Beginning with Angular 1.5, this directive is deprecated and by default **disabled**.
+ * The directive will receive no further support and might be removed from future releases.
+ * If you need the directive, you can enable it with the {@link ngTouch.$touchProvider $touchProvider#ngClickOverrideEnabled}
+ * function. We also recommend that you migrate to [FastClick](https://github.com/ftlabs/fastclick).
+ * To learn more about the 300ms delay, this [Telerik article](http://developer.telerik.com/featured/300-ms-click-delay-ios-8/)
+ * gives a good overview.
+ * </div>
  * A more powerful replacement for the default ngClick designed to be used on touchscreen
  * devices. Most mobile browsers wait about 300ms after a tap-and-release before sending
  * the click event. This version handles them immediately, and then prevents the
  * following click event from propagating.
+ *
+ * Requires the {@link ngTouch `ngTouch`} module to be installed.
  *
  * This directive can fall back to using an ordinary click event, and so works on desktop
  * browsers as well as mobile.
@@ -21,25 +36,20 @@
  * upon tap. (Event object is available as `$event`)
  *
  * @example
-    <doc:example>
-      <doc:source>
+    <example module="ngClickExample" deps="angular-touch.js">
+      <file name="index.html">
         <button ng-click="count = count + 1" ng-init="count=0">
           Increment
         </button>
         count: {{ count }}
-      </doc:source>
-    </doc:example>
+      </file>
+      <file name="script.js">
+        angular.module('ngClickExample', ['ngTouch']);
+      </file>
+    </example>
  */
 
-ngTouch.config(['$provide', function($provide) {
-  $provide.decorator('ngClickDirective', ['$delegate', function($delegate) {
-    // drop the default ngClick directive
-    $delegate.shift();
-    return $delegate;
-  }]);
-}]);
-
-ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
+var ngTouchClickDirectiveFactory = ['$parse', '$timeout', '$rootElement',
     function($parse, $timeout, $rootElement) {
   var TAP_DURATION = 750; // Shorter than 750ms is a tap, longer is a taphold or drag.
   var MOVE_TOLERANCE = 12; // 12px seems to work in most mobile browsers.
@@ -49,6 +59,7 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
   var ACTIVE_CLASS_NAME = 'ng-click-active';
   var lastPreventedTime;
   var touchCoordinates;
+  var lastLabelClickCoordinates;
 
 
   // TAP EVENTS AND GHOST CLICKS
@@ -58,19 +69,19 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
   // double-tapping, and then fire a click event.
   //
   // This delay sucks and makes mobile apps feel unresponsive.
-  // So we detect touchstart, touchmove, touchcancel and touchend ourselves and determine when
+  // So we detect touchstart, touchcancel and touchend ourselves and determine when
   // the user has tapped on something.
   //
   // What happens when the browser then generates a click event?
   // The browser, of course, also detects the tap and fires a click after a delay. This results in
-  // tapping/clicking twice. So we do "clickbusting" to prevent it.
+  // tapping/clicking twice. We do "clickbusting" to prevent it.
   //
   // How does it work?
   // We attach global touchstart and click handlers, that run during the capture (early) phase.
   // So the sequence for a tap is:
   // - global touchstart: Sets an "allowable region" at the point touched.
   // - element's touchstart: Starts a touch
-  // (- touchmove or touchcancel ends the touch, no click follows)
+  // (- touchcancel ends the touch, no click follows)
   // - element's touchend: Determines if the tap is valid (didn't move too far away, didn't hold
   //   too long) and fires the user's tap handler. The touchend also calls preventGhostClick().
   // - preventGhostClick() removes the allowable region the global touchstart created.
@@ -86,9 +97,9 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
   // encapsulates this ugly logic away from the user.
   //
   // Why not just put click handlers on the element?
-  // We do that too, just to be sure. The problem is that the tap event might have caused the DOM
-  // to change, so that the click fires in the same position but something else is there now. So
-  // the handlers are global and care only about coordinates and not elements.
+  // We do that too, just to be sure. If the tap event caused the DOM to change,
+  // it is possible another element is now in that position. To take account for these possibly
+  // distinct elements, the handlers are global and care only about coordinates.
 
   // Checks if the coordinates are close enough to be within the region.
   function hit(x1, y1, x2, y2) {
@@ -100,7 +111,7 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
   // Splices out the allowable region from the list after it has been used.
   function checkAllowableRegions(touchCoordinates, x, y) {
     for (var i = 0; i < touchCoordinates.length; i += 2) {
-      if (hit(touchCoordinates[i], touchCoordinates[i+1], x, y)) {
+      if (hit(touchCoordinates[i], touchCoordinates[i + 1], x, y)) {
         touchCoordinates.splice(i, i + 2);
         return true; // allowable region
       }
@@ -120,9 +131,22 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
     var y = touches[0].clientY;
     // Work around desktop Webkit quirk where clicking a label will fire two clicks (on the label
     // and on the input element). Depending on the exact browser, this second click we don't want
-    // to bust has either (0,0) or negative coordinates.
+    // to bust has either (0,0), negative coordinates, or coordinates equal to triggering label
+    // click event
     if (x < 1 && y < 1) {
       return; // offscreen
+    }
+    if (lastLabelClickCoordinates &&
+        lastLabelClickCoordinates[0] === x && lastLabelClickCoordinates[1] === y) {
+      return; // input click triggered by label click
+    }
+    // reset label click coordinates on first subsequent click
+    if (lastLabelClickCoordinates) {
+      lastLabelClickCoordinates = null;
+    }
+    // remember label click coordinates to prevent click busting of trigger click event on input
+    if (nodeName_(event.target) === 'label') {
+      lastLabelClickCoordinates = [x, y];
     }
 
     // Look for an allowable region containing this click.
@@ -137,7 +161,7 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
     event.preventDefault();
 
     // Blur focused form elements
-    event.target && event.target.blur();
+    event.target && event.target.blur && event.target.blur();
   }
 
 
@@ -152,7 +176,7 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
     $timeout(function() {
       // Remove the allowable region.
       for (var i = 0; i < touchCoordinates.length; i += 2) {
-        if (touchCoordinates[i] == x && touchCoordinates[i+1] == y) {
+        if (touchCoordinates[i] === x && touchCoordinates[i + 1] === y) {
           touchCoordinates.splice(i, i + 2);
           return;
         }
@@ -192,7 +216,7 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
       tapping = true;
       tapElement = event.target ? event.target : event.srcElement; // IE uses srcElement.
       // Hack for Safari, which can target text nodes instead of containers.
-      if(tapElement.nodeType == 3) {
+      if (tapElement.nodeType === 3) {
         tapElement = tapElement.parentNode;
       }
 
@@ -200,14 +224,12 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
 
       startTime = Date.now();
 
-      var touches = event.touches && event.touches.length ? event.touches : [event];
-      var e = touches[0].originalEvent || touches[0];
+      // Use jQuery originalEvent
+      var originalEvent = event.originalEvent || event;
+      var touches = originalEvent.touches && originalEvent.touches.length ? originalEvent.touches : [originalEvent];
+      var e = touches[0];
       touchStartX = e.clientX;
       touchStartY = e.clientY;
-    });
-
-    element.on('touchmove', function(event) {
-      resetState();
     });
 
     element.on('touchcancel', function(event) {
@@ -217,12 +239,15 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
     element.on('touchend', function(event) {
       var diff = Date.now() - startTime;
 
-      var touches = (event.changedTouches && event.changedTouches.length) ? event.changedTouches :
-          ((event.touches && event.touches.length) ? event.touches : [event]);
-      var e = touches[0].originalEvent || touches[0];
+      // Use jQuery originalEvent
+      var originalEvent = event.originalEvent || event;
+      var touches = (originalEvent.changedTouches && originalEvent.changedTouches.length) ?
+          originalEvent.changedTouches :
+          ((originalEvent.touches && originalEvent.touches.length) ? originalEvent.touches : [originalEvent]);
+      var e = touches[0];
       var x = e.clientX;
       var y = e.clientY;
-      var dist = Math.sqrt( Math.pow(x - touchStartX, 2) + Math.pow(y - touchStartY, 2) );
+      var dist = Math.sqrt(Math.pow(x - touchStartX, 2) + Math.pow(y - touchStartY, 2));
 
       if (tapping && diff < TAP_DURATION && dist < MOVE_TOLERANCE) {
         // Call preventGhostClick so the clickbuster will catch the corresponding click.
@@ -236,7 +261,7 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
         }
 
         if (!angular.isDefined(attr.disabled) || attr.disabled === false) {
-          element.triggerHandler('click', event);
+          element.triggerHandler('click', [event]);
         }
       }
 
@@ -253,9 +278,9 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
     // - On mobile browsers, the simulated "fast" click will call this.
     // - But the browser's follow-up slow click will be "busted" before it reaches this handler.
     // Therefore it's safe to use this directive on both mobile and desktop.
-    element.on('click', function(event) {
+    element.on('click', function(event, touchend) {
       scope.$apply(function() {
-        clickHandler(scope, {$event: event});
+        clickHandler(scope, {$event: (touchend || event)});
       });
     });
 
@@ -268,5 +293,5 @@ ngTouch.directive('ngClick', ['$parse', '$timeout', '$rootElement',
     });
 
   };
-}]);
+}];
 

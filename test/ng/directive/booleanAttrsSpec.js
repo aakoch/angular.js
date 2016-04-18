@@ -10,7 +10,7 @@ describe('boolean attr directives', function() {
 
   it('should properly evaluate 0 as false', inject(function($rootScope, $compile) {
     // jQuery does not treat 0 as false, when setting attr()
-    element = $compile('<button ng-disabled="isDisabled">Button</button>')($rootScope)
+    element = $compile('<button ng-disabled="isDisabled">Button</button>')($rootScope);
     $rootScope.isDisabled = 0;
     $rootScope.$digest();
     expect(element.attr('disabled')).toBeFalsy();
@@ -21,7 +21,7 @@ describe('boolean attr directives', function() {
 
 
   it('should bind disabled', inject(function($rootScope, $compile) {
-    element = $compile('<button ng-disabled="isDisabled">Button</button>')($rootScope)
+    element = $compile('<button ng-disabled="isDisabled">Button</button>')($rootScope);
     $rootScope.isDisabled = false;
     $rootScope.$digest();
     expect(element.attr('disabled')).toBeFalsy();
@@ -32,7 +32,7 @@ describe('boolean attr directives', function() {
 
 
   it('should bind checked', inject(function($rootScope, $compile) {
-    element = $compile('<input type="checkbox" ng-checked="isChecked" />')($rootScope)
+    element = $compile('<input type="checkbox" ng-checked="isChecked" />')($rootScope);
     $rootScope.isChecked = false;
     $rootScope.$digest();
     expect(element.attr('checked')).toBeFalsy();
@@ -42,9 +42,25 @@ describe('boolean attr directives', function() {
   }));
 
 
+  it('should not bind checked when ngModel is present', inject(function($rootScope, $compile) {
+    // test for https://github.com/angular/angular.js/issues/10662
+    element = $compile('<input type="checkbox" ng-model="value" ng-false-value="\'false\'" ' +
+      'ng-true-value="\'true\'" ng-checked="value" />')($rootScope);
+    $rootScope.value = 'true';
+    $rootScope.$digest();
+    expect(element[0].checked).toBe(true);
+    browserTrigger(element, 'click');
+    expect(element[0].checked).toBe(false);
+    expect($rootScope.value).toBe('false');
+    browserTrigger(element, 'click');
+    expect(element[0].checked).toBe(true);
+    expect($rootScope.value).toBe('true');
+  }));
+
+
   it('should bind selected', inject(function($rootScope, $compile) {
-    element = $compile('<select><option value=""></option><option ng-selected="isSelected">Greetings!</option></select>')($rootScope)
-    jqLite(document.body).append(element)
+    element = $compile('<select><option value=""></option><option ng-selected="isSelected">Greetings!</option></select>')($rootScope);
+    jqLite(document.body).append(element);
     $rootScope.isSelected=false;
     $rootScope.$digest();
     expect(element.children()[1].selected).toBeFalsy();
@@ -55,7 +71,7 @@ describe('boolean attr directives', function() {
 
 
   it('should bind readonly', inject(function($rootScope, $compile) {
-    element = $compile('<input type="text" ng-readonly="isReadonly" />')($rootScope)
+    element = $compile('<input type="text" ng-readonly="isReadonly" />')($rootScope);
     $rootScope.isReadonly=false;
     $rootScope.$digest();
     expect(element.attr('readOnly')).toBeFalsy();
@@ -66,7 +82,7 @@ describe('boolean attr directives', function() {
 
 
   it('should bind open', inject(function($rootScope, $compile) {
-    element = $compile('<details ng-open="isOpen"></details>')($rootScope)
+    element = $compile('<details ng-open="isOpen"></details>')($rootScope);
     $rootScope.isOpen=false;
     $rootScope.$digest();
     expect(element.attr('open')).toBeFalsy();
@@ -78,7 +94,7 @@ describe('boolean attr directives', function() {
 
   describe('multiple', function() {
     it('should NOT bind to multiple via ngMultiple', inject(function($rootScope, $compile) {
-      element = $compile('<select ng-multiple="isMultiple"></select>')($rootScope)
+      element = $compile('<select ng-multiple="isMultiple"></select>')($rootScope);
       $rootScope.isMultiple=false;
       $rootScope.$digest();
       expect(element.attr('multiple')).toBeFalsy();
@@ -89,11 +105,9 @@ describe('boolean attr directives', function() {
 
 
     it('should throw an exception if binding to multiple attribute', inject(function($rootScope, $compile) {
-      if (msie < 9) return; //IE8 doesn't support biding to boolean attributes
-
       expect(function() {
-        $compile('<select multiple="{{isMultiple}}"></select>')
-      }).toThrow('[$compile:selmulti] Binding to the \'multiple\' attribute is not supported. ' +
+        $compile('<select multiple="{{isMultiple}}"></select>');
+      }).toThrowMinErr('$compile', 'selmulti', 'Binding to the \'multiple\' attribute is not supported. ' +
                  'Element: <select multiple="{{isMultiple}}">');
 
     }));
@@ -137,8 +151,8 @@ describe('ngSrc', function() {
     expect(function() {
       var element = $compile('<div ng-src="some/{{id}}"></div>')($rootScope);
       dealoc(element);
-    }).toThrow(
-          "[$interpolate:noconcat] Error while interpolating: some/{{id}}\nStrict " +
+    }).toThrowMinErr(
+          "$interpolate", "noconcat", "Error while interpolating: some/{{id}}\nStrict " +
           "Contextual Escaping disallows interpolations that concatenate multiple expressions " +
           "when a trusted value is required.  See http://docs.angularjs.org/api/ng.$sce");
   }));
@@ -162,8 +176,8 @@ describe('ngSrc', function() {
         $rootScope.id = $sce.trustAsUrl('http://somewhere');
       });
       element.attr('src');
-    }).toThrow(
-            "[$interpolate:interr] Can't interpolate: {{id}}\nError: [$sce:insecurl] Blocked " +
+    }).toThrowMinErr(
+            "$interpolate", "interr", "Can't interpolate: {{id}}\nError: [$sce:insecurl] Blocked " +
                 "loading resource from url not allowed by $sceDelegate policy.  URL: http://somewhere");
   }));
 
@@ -204,7 +218,7 @@ describe('ngSrcset', function() {
     var element = $compile('<div ng-srcset="some/{{id}} 2x"></div>')($rootScope);
 
     $rootScope.$digest();
-    expect(element.attr('srcset')).toEqual('some/ 2x');
+    expect(element.attr('srcset')).toBeUndefined();
 
     $rootScope.$apply(function() {
       $rootScope.id = 1;
@@ -225,7 +239,7 @@ describe('ngHref', function() {
 
 
   it('should interpolate the expression and bind to href', inject(function($compile, $rootScope) {
-    element = $compile('<div ng-href="some/{{id}}"></div>')($rootScope)
+    element = $compile('<div ng-href="some/{{id}}"></div>')($rootScope);
     $rootScope.$digest();
     expect(element.attr('href')).toEqual('some/');
 
@@ -247,8 +261,61 @@ describe('ngHref', function() {
 
 
   it('should bind href even if no interpolation', inject(function($rootScope, $compile) {
-    element = $compile('<a ng-href="http://server"></a>')($rootScope)
+    element = $compile('<a ng-href="http://server"></a>')($rootScope);
     $rootScope.$digest();
     expect(element.attr('href')).toEqual('http://server');
   }));
+
+  it('should not set the href if ng-href is empty', inject(function($rootScope, $compile) {
+    $rootScope.url = null;
+    element = $compile('<a ng-href="{{url}}">')($rootScope);
+    $rootScope.$digest();
+    expect(element.attr('href')).toEqual(undefined);
+  }));
+
+  it('should remove the href if ng-href changes to empty', inject(function($rootScope, $compile) {
+    $rootScope.url = 'http://www.google.com/';
+    element = $compile('<a ng-href="{{url}}">')($rootScope);
+    $rootScope.$digest();
+
+    $rootScope.url = null;
+    $rootScope.$digest();
+    expect(element.attr('href')).toEqual(undefined);
+  }));
+
+  if (msie) {
+    // IE11/10/Edge fail when setting a href to a URL containing a % that isn't a valid escape sequence
+    // See https://github.com/angular/angular.js/issues/13388
+    it('should throw error if ng-href contains a non-escaped percent symbol', inject(function($rootScope, $compile) {
+      element = $compile('<a ng-href="http://www.google.com/{{\'a%link\'}}">')($rootScope);
+
+      expect(function() {
+        $rootScope.$digest();
+      }).toThrow();
+    }));
+  }
+
+  if (isDefined(window.SVGElement)) {
+    describe('SVGAElement', function() {
+      it('should interpolate the expression and bind to xlink:href', inject(function($compile, $rootScope) {
+        element = $compile('<svg><a ng-href="some/{{id}}"></a></svg>')($rootScope);
+        var child = element.children('a');
+        $rootScope.$digest();
+        expect(child.attr('xlink:href')).toEqual('some/');
+
+        $rootScope.$apply(function() {
+          $rootScope.id = 1;
+        });
+        expect(child.attr('xlink:href')).toEqual('some/1');
+      }));
+
+
+      it('should bind xlink:href even if no interpolation', inject(function($rootScope, $compile) {
+        element = $compile('<svg><a ng-href="http://server"></a></svg>')($rootScope);
+        var child = element.children('a');
+        $rootScope.$digest();
+        expect(child.attr('xlink:href')).toEqual('http://server');
+      }));
+    });
+  }
 });

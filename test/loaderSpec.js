@@ -3,7 +3,7 @@
 describe('module loader', function() {
   var window;
 
-  beforeEach(function () {
+  beforeEach(function() {
     window = {};
     setupModuleLoader(window);
   });
@@ -32,12 +32,14 @@ describe('module loader', function() {
     var myModule = window.angular.module('my', ['other'], 'config');
 
     expect(myModule.
+      decorator('dk', 'dv').
       provider('sk', 'sv').
       factory('fk', 'fv').
       service('a', 'aa').
       value('k', 'v').
       filter('f', 'ff').
       directive('d', 'dd').
+      component('c', 'cc').
       controller('ctrl', 'ccc').
       config('init2').
       constant('abc', 123).
@@ -45,16 +47,20 @@ describe('module loader', function() {
 
     expect(myModule.requires).toEqual(['other']);
     expect(myModule._invokeQueue).toEqual([
-      ['$provide', 'constant', ['abc', 123] ],
-      ['$injector', 'invoke', ['config'] ],
-      ['$provide', 'provider', ['sk', 'sv'] ],
-      ['$provide', 'factory', ['fk', 'fv'] ],
-      ['$provide', 'service', ['a', 'aa'] ],
-      ['$provide', 'value', ['k', 'v'] ],
-      ['$filterProvider', 'register', ['f', 'ff'] ],
-      ['$compileProvider', 'directive', ['d', 'dd'] ],
-      ['$controllerProvider', 'register', ['ctrl', 'ccc']],
-      ['$injector', 'invoke', ['init2'] ]
+      ['$provide', 'constant', jasmine.objectContaining(['abc', 123])],
+      ['$provide', 'decorator', jasmine.objectContaining(['dk', 'dv'])],
+      ['$provide', 'provider', jasmine.objectContaining(['sk', 'sv'])],
+      ['$provide', 'factory', jasmine.objectContaining(['fk', 'fv'])],
+      ['$provide', 'service', jasmine.objectContaining(['a', 'aa'])],
+      ['$provide', 'value', jasmine.objectContaining(['k', 'v'])],
+      ['$filterProvider', 'register', jasmine.objectContaining(['f', 'ff'])],
+      ['$compileProvider', 'directive', jasmine.objectContaining(['d', 'dd'])],
+      ['$compileProvider', 'component', jasmine.objectContaining(['c', 'cc'])],
+      ['$controllerProvider', 'register', jasmine.objectContaining(['ctrl', 'ccc'])]
+    ]);
+    expect(myModule._configBlocks).toEqual([
+      ['$injector', 'invoke', jasmine.objectContaining(['config'])],
+      ['$injector', 'invoke', jasmine.objectContaining(['init2'])]
     ]);
     expect(myModule._runBlocks).toEqual(['runBlock']);
   });
@@ -68,8 +74,18 @@ describe('module loader', function() {
   it('should complain of no module', function() {
     expect(function() {
       window.angular.module('dontExist');
-    }).toThrow("[$injector:nomod] Module 'dontExist' is not available! You either misspelled the module name " +
+    }).toThrowMinErr("$injector", "nomod", "Module 'dontExist' is not available! You either misspelled the module name " +
             "or forgot to load it. If registering a module ensure that you specify the dependencies as the second " +
             "argument.");
+  });
+
+  it('should complain if a module is called "hasOwnProperty', function() {
+    expect(function() {
+      window.angular.module('hasOwnProperty', []);
+    }).toThrowMinErr('ng','badname', "hasOwnProperty is not a valid module name");
+  });
+
+  it('should expose `$$minErr` on the `angular` object', function() {
+    expect(window.angular.$$minErr).toEqual(jasmine.any(Function));
   });
 });
